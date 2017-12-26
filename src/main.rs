@@ -1,13 +1,14 @@
-extern crate coinnect;
-
 use std::{thread, time};
 use std::collections::HashMap;
 use std::iter::Iterator;
 
+extern crate argparse;
+use argparse::{ArgumentParser, Store};
 
 extern crate num_traits;
 use num_traits::cast::ToPrimitive;
 
+extern crate coinnect;
 use coinnect::types::*;
 use coinnect::bitstamp::api::BitstampApi;
 use coinnect::bitstamp::credentials::BitstampCreds;
@@ -29,6 +30,30 @@ impl CurrencyWithId {
 
 fn main() {
 
+    // parse cmd-line args
+    let mut db_schema = "public".to_string();
+    let mut db_user = "".to_string();
+    let mut db_password = "".to_string();
+    let mut db_host = "localhost".to_string();
+    let mut db_port = "5432".to_string();
+
+    {  // this block limits scope of borrows by ap.refer() method
+        let mut ap = ArgumentParser::new();
+        ap.set_description("Bistamp price tracker.");
+        ap.refer(&mut db_host)
+            .add_option(&["--host"], Store,"Database host");
+        ap.refer(&mut db_port)
+            .add_option(&["--port"], Store,"Database port");
+        ap.refer(&mut db_schema)
+            .add_option(&["--schema"], Store,"Database schema");
+        ap.refer(&mut db_user)
+            .add_option(&["--user"], Store,"Database user");
+        ap.refer(&mut db_password)
+            .add_option(&["--password"], Store,"Database password");
+
+        ap.parse_args_or_exit();
+    }
+
     // connect to bitstamp public API - no credentials required
     let creds = BitstampCreds::new("BitstampClient", "", "", "");
     let mut api = BitstampApi::new(creds).unwrap();
@@ -48,22 +73,23 @@ fn main() {
     // how often to collect prices?
     let sleep_interval = time::Duration::from_millis(15000);
 
-    //TODO: pass connection details as cmd-line params
-    let conn = Connection::connect("postgres://postgres:postgres@localhost:5432", TlsMode::None).unwrap();
+    let connect_string = format!("postgres://{}:{}@{}:{}",
+                                 db_user, db_password, db_host, db_port);
+    let conn = Connection::connect(connect_string, TlsMode::None).unwrap();
 
     // loop forever, collecting prices and storing them
     loop {
-        collect_prices(&mut api, &conn, &currencies);
+        collect_prices(&mut api, &conn, &db_schema, &currencies);
         thread::sleep(sleep_interval);
     }
 }
 
-fn collect_prices(api: &mut BitstampApi, conn: &Connection, currencies: &Vec<CurrencyWithId>) {
+fn collect_prices(api: &mut BitstampApi, conn: &Connection, db_schema: &String, currencies: &Vec<CurrencyWithId>) {
 
     // only one call per second allowed
     let one_second = time::Duration::from_millis(1000);
 
-    let sql = "INSERT INTO price_history (currency_id, price) VALUES ($1, $2)";
+    let sql = format!("INSERT INTO {}.price_history (currency_id, price) VALUES ($1, $2)", db_schema);
 
     currencies.iter().for_each(|ccy| {
         match api.ticker(ccy.pair) {
@@ -71,7 +97,7 @@ fn collect_prices(api: &mut BitstampApi, conn: &Connection, currencies: &Vec<Cur
                 match ticker.last_trade_price.to_f64() {
                     Some(price) => {
                         println!("{:?}: {:8.2}", ccy.pair, price);
-                        match conn.execute(sql, &[&ccy.id, &price]) {
+                        match conn.execute(&sql, &[&ccy.id, &price]) {
                             Ok(_) => {},
                             Err(e) => println!("Failed to store {:?}: {:8.2} DBERR: {:?}", ccy.pair, price, e)
                         };
