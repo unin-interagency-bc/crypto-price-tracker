@@ -1,0 +1,11 @@
+[package]
+name = "crypto-price-tracker"
+version = "0.1.0"
+authors = ["Andy Grove <andygrove73@gmail.com>"]
+
+[dependencies]
+coinnect = "0.5.7"
+#coinnect = { path = "../coinnect", version = "0.5.6" }
+postgres = "0.15"
+bigdecimal = "0.0.10"
+num-traits = "*"

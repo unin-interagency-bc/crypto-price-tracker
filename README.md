@@ -1,2 +1,3 @@
 # crypto-price-tracker
-Simple app to collect cryptocurrency prices from Bitstamp and store them in a database
+
+Simple command-line app to pull ticker prices from Bistamp and store in a postgres database.
