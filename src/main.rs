@@ -63,7 +63,7 @@ fn collect_prices(api: &mut BitstampApi, conn: &Connection, currencies: &Vec<Cur
     // only one call per second allowed
     let one_second = time::Duration::from_millis(1000);
 
-    let sql = "INSERT INTO cryptotrader_dev.price_history (currency_id, price) VALUES ($1, $2)";
+    let sql = "INSERT INTO price_history (currency_id, price) VALUES ($1, $2)";
 
     currencies.iter().for_each(|ccy| {
         match api.ticker(ccy.pair) {
